@@ -9,10 +9,10 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/rtk-rnjn/ping/routes/internals"
 	"github.com/rtk-rnjn/ping/controller"
 	"github.com/rtk-rnjn/ping/models"
 	"github.com/rtk-rnjn/ping/routes"
+	"github.com/rtk-rnjn/ping/routes/internals"
 )
 
 func getTestDB() *gorm.DB {

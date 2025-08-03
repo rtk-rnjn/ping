@@ -8,6 +8,7 @@ import (
 	"github.com/rtk-rnjn/ping/config"
 	"github.com/rtk-rnjn/ping/controller"
 	"github.com/rtk-rnjn/ping/routes"
+
 )
 
 func InitEnv() {
@@ -43,7 +44,7 @@ func InitHealthRoutes(r *gin.Engine) {
 
 func main() {
 	InitEnv()
-	gin.SetMode(gin.ReleaseMode)
+	// gin.SetMode(gin.ReleaseMode)
 
 	r := gin.Default()
 

@@ -89,3 +89,25 @@ func GetChannelUsersHandler(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, users)
 	}
 }
+
+func CreateChannelHandler(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Name string `json:"name"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		channel := &models.Channel{Name: req.Name}
+		err := controller.CreateChannel(db, channel)
+		if err != nil {
+			log.Printf("Error creating channel: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, channel)
+	}
+}
