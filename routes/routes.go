@@ -1,8 +1,8 @@
 package routes
 
 import (
+	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -25,11 +25,13 @@ func RegisterHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req AuthRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Printf("Error binding JSON: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		token, err := auth.RegisterUser(db, req.Username, req.Password, req.DisplayName)
 		if err != nil {
+			log.Printf("Error registering user: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -41,29 +43,14 @@ func LoginHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req AuthRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Printf("Error binding JSON: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		token, err := auth.LoginUser(db, req.Username, req.Password)
 		if err != nil {
+			log.Printf("Error logging in user: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, TokenResponse{Token: token})
-	}
-}
-
-func ResetTokenHandler(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userIDStr := c.Query("user_id")
-		uid, err := strconv.ParseUint(userIDStr, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
-			return
-		}
-		token, err := auth.ResetToken(db, uint(uid))
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, TokenResponse{Token: token})
@@ -73,6 +60,7 @@ func ResetTokenHandler(db *gorm.DB) gin.HandlerFunc {
 func RedisHealthCheck(c *gin.Context) {
 	_, err := controller.RunCommand("PING")
 	if err != nil {
+		log.Printf("Redis health check failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis is down"})
 		return
 	}
@@ -82,11 +70,27 @@ func RedisHealthCheck(c *gin.Context) {
 func DatabaseHealthCheck(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sqlDB, err := db.DB()
+		query := "SELECT 1"
 		if err != nil {
+			log.Printf("Failed to get database connection: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get database connection"})
 			return
 		}
+
+		if err := sqlDB.PingContext(c.Request.Context()); err != nil {
+			log.Printf("Database ping failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is down"})
+			return
+		}
+
+		if err := sqlDB.QueryRowContext(c.Request.Context(), query).Scan(new(int)); err != nil {
+			log.Printf("Database query failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query failed"})
+			return
+		}
+
 		if err := sqlDB.Ping(); err != nil {
+			log.Printf("Database ping failed: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database is down"})
 			return
 		}

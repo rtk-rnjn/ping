@@ -16,6 +16,7 @@ func InitEnv() {
 		log.Println("No .env file found")
 	}
 }
+
 func InitDB() {
 	if err := config.InitDB(); err != nil {
 		panic("Failed to connect to database: " + err.Error())
@@ -23,17 +24,13 @@ func InitDB() {
 	controller.InitRedis()
 }
 
-func InitAuthRoutes(r *gin.Engine) *gin.RouterGroup {
-	r.Use(gin.Logger())
-	r.Use(gin.Recovery())
+func InitAuthRoutes(r *gin.Engine) {
 	authGroup := r.Group("/auth")
 	{
 
-		r.POST("/register", routes.RegisterHandler(config.DB))
-		r.POST("/login", routes.LoginHandler(config.DB))
-		r.GET("/reset-token", routes.ResetTokenHandler(config.DB))
+		authGroup.POST("/register", routes.RegisterHandler(config.DB))
+		authGroup.POST("/login", routes.LoginHandler(config.DB))
 	}
-	return authGroup
 }
 
 func InitHealthRoutes(r *gin.Engine) {
@@ -46,8 +43,10 @@ func InitHealthRoutes(r *gin.Engine) {
 
 func main() {
 	InitEnv()
+	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.Default()
+
 	InitDB()
 	InitAuthRoutes(r)
 	InitHealthRoutes(r)

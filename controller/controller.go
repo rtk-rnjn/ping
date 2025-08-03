@@ -33,14 +33,21 @@ func InitRedis() {
 }
 
 func SetCache(key string, value string, ttl time.Duration) error {
+	log.Printf("Setting cache for key: %s", key)
 	return Rdb.Set(ctx, key, value, ttl).Err()
 }
 
 func GetCache(key string) (string, error) {
-	return Rdb.Get(ctx, key).Result()
+	res, err := Rdb.Get(ctx, key).Result()
+	if err != nil {
+		log.Printf("Cache miss for key %s: %v", key, err)
+		return "", err
+	}
+	return res, nil
 }
 
 func DeleteCache(key string) error {
+	log.Printf("Deleting cache for key: %s", key)
 	return Rdb.Del(ctx, key).Err()
 }
 
@@ -151,7 +158,7 @@ func DeleteChannel(db *gorm.DB, id uint) error {
 func CreateMessage(db *gorm.DB, msg *models.Message) error {
 	err := db.Create(msg).Error
 	if err == nil {
-		Rdb.Del(ctx, fmt.Sprintf("channel:%d", msg.ChannelID)) // invalidate channel message list
+		Rdb.Del(ctx, fmt.Sprintf("channel:%d", msg.ChannelID))
 	}
 	return err
 }

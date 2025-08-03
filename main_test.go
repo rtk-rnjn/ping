@@ -157,7 +157,6 @@ func TestRoutesHandlers(t *testing.T) {
 	r := gin.New()
 	r.POST("/register", routes.RegisterHandler(db))
 	r.POST("/login", routes.LoginHandler(db))
-	r.GET("/reset-token", routes.ResetTokenHandler(db))
 	r.GET("/health/database", routes.DatabaseHealthCheck(db))
 	r.GET("/health/redis", routes.RedisHealthCheck)
 }
