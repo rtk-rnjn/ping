@@ -9,7 +9,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/rtk-rnjn/ping/auth"
+	"github.com/rtk-rnjn/ping/routes/internals"
 	"github.com/rtk-rnjn/ping/controller"
 	"github.com/rtk-rnjn/ping/models"
 	"github.com/rtk-rnjn/ping/routes"
@@ -25,15 +25,15 @@ func getTestDB() *gorm.DB {
 
 func TestHashPasswordAndCheck(t *testing.T) {
 	pass := "secret"
-	hash, err := auth.HashPassword(pass)
+	hash, err := internals.HashPassword(pass)
 	assert.NoError(t, err)
-	assert.True(t, auth.CheckPasswordHash(hash, pass))
-	assert.False(t, auth.CheckPasswordHash(hash, "wrong"))
+	assert.True(t, internals.CheckPasswordHash(hash, pass))
+	assert.False(t, internals.CheckPasswordHash(hash, "wrong"))
 }
 
 func TestGenerateJWT(t *testing.T) {
 	user := &models.User{ID: 1, Username: "test"}
-	token, err := auth.GenerateJWT(user)
+	token, err := internals.GenerateJWT(user)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
@@ -53,14 +53,14 @@ func TestLoginUser(t *testing.T) {
 	db := getTestDB()
 	controller.InitRedis()
 
-	hashedPass, _ := auth.HashPassword("hashedpass")
+	hashedPass, _ := internals.HashPassword("hashedpass")
 
 	user := &models.User{Username: "testuser", PasswordHash: hashedPass, DisplayName: "Test User"}
 	db.Create(user)
 	assert.NotEmpty(t, user.ID)
 	assert.NotEmpty(t, user.PasswordHash)
 
-	token, err := auth.LoginUser(db, user.Username, "hashedpass")
+	token, err := internals.LoginUser(db, user.Username, "hashedpass")
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
@@ -75,13 +75,6 @@ func TestControllerUserCRUD(t *testing.T) {
 	got, err := controller.GetUserByID(db, user.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, user.Username, got.Username)
-
-	user.DisplayName = "new"
-	err = controller.UpdateUser(db, user)
-	assert.NoError(t, err)
-
-	err = controller.DeleteUser(db, user.ID)
-	assert.NoError(t, err)
 }
 
 func TestControllerChannelCRUD(t *testing.T) {
@@ -117,13 +110,6 @@ func TestControllerMessageCRUD(t *testing.T) {
 	got, err := controller.GetMessageByID(db, msg.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, msg.Content, got.Content)
-
-	msg.Content = "bye"
-	err = controller.UpdateMessage(db, msg)
-	assert.NoError(t, err)
-
-	err = controller.DeleteMessage(db, msg.ID)
-	assert.NoError(t, err)
 }
 
 func TestControllerUserChannel(t *testing.T) {

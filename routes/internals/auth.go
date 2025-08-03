@@ -1,4 +1,4 @@
-package auth
+package internals
 
 import (
 	"context"
@@ -36,6 +36,31 @@ func GenerateJWT(user *models.User) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
+func ValidateJWT(tokenString string) (*models.User, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid claims")
+	}
+
+	userID := uint(claims["id"].(float64))
+	user := &models.User{ID: userID}
+	if err := controller.Rdb.Get(context.Background(), fmt.Sprintf("user:%d", userID)).Scan(user); err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return user, nil
+}
+
 func RegisterUser(db *gorm.DB, username string, password string, displayName string) (string, error) {
 	hashed, err := HashPassword(password)
 	if err != nil {
@@ -68,11 +93,3 @@ func LoginUser(db *gorm.DB, username, password string) (string, error) {
 	return GenerateJWT(&user)
 }
 
-func ResetToken(db *gorm.DB, userID uint) (string, error) {
-	var user models.User
-	err := db.First(&user, userID).Error
-	if err != nil {
-		return "", err
-	}
-	return GenerateJWT(&user)
-}

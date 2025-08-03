@@ -39,24 +39,6 @@ func GetUserByID(db *gorm.DB, id uint) (*models.User, error) {
 	return &user, nil
 }
 
-func UpdateUser(db *gorm.DB, user *models.User) error {
-	err := db.Save(user).Error
-	if err == nil {
-		cacheKey := fmt.Sprintf("user:%d", user.ID)
-		Rdb.Del(ctx, cacheKey)
-	}
-	return err
-}
-
-func DeleteUser(db *gorm.DB, id uint) error {
-	err := db.Delete(&models.User{}, id).Error
-	if err == nil {
-		cacheKey := fmt.Sprintf("user:%d", id)
-		Rdb.Del(ctx, cacheKey)
-	}
-	return err
-}
-
 func CreateChannel(db *gorm.DB, ch *models.Channel) error {
 	err := db.Create(ch).Error
 	if err == nil {
@@ -123,27 +105,6 @@ func GetMessagesByChannelID(db *gorm.DB, channelID uint) ([]models.Message, erro
 	var msgs []models.Message
 	err := db.Where("channel_id = ?", channelID).Preload("User").Find(&msgs).Error
 	return msgs, err
-}
-
-func UpdateMessage(db *gorm.DB, msg *models.Message) error {
-	err := db.Save(msg).Error
-	if err == nil {
-		Rdb.Del(ctx, fmt.Sprintf("channel:%d", msg.ChannelID))
-	}
-	return err
-}
-
-func DeleteMessage(db *gorm.DB, id uint) error {
-	var msg models.Message
-	err := db.First(&msg, id).Error
-	if err != nil {
-		return err
-	}
-	err = db.Delete(&models.Message{}, id).Error
-	if err == nil {
-		Rdb.Del(ctx, fmt.Sprintf("channel:%d", msg.ChannelID))
-	}
-	return err
 }
 
 func AddUserToChannel(db *gorm.DB, uc *models.UserChannel) error {

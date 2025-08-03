@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/rtk-rnjn/ping/auth"
+	"github.com/rtk-rnjn/ping/routes/internals"
 )
 
 type AuthRequest struct {
@@ -28,7 +28,7 @@ func RegisterHandler(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		token, err := auth.RegisterUser(db, req.Username, req.Password, req.DisplayName)
+		token, err := internals.RegisterUser(db, req.Username, req.Password, req.DisplayName)
 		if err != nil {
 			log.Printf("Error registering user: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -46,7 +46,7 @@ func LoginHandler(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		token, err := auth.LoginUser(db, req.Username, req.Password)
+		token, err := internals.LoginUser(db, req.Username, req.Password)
 		if err != nil {
 			log.Printf("Error logging in user: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
