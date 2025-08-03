@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 
-	"github.com/rtk-rnjn/ping/routes"
-	"github.com/rtk-rnjn/ping/config"
-	"github.com/rtk-rnjn/ping/controller"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/rtk-rnjn/ping/config"
+	"github.com/rtk-rnjn/ping/controller"
+	"github.com/rtk-rnjn/ping/routes"
 )
 
 func InitEnv() {
@@ -56,6 +56,7 @@ func main() {
 			"message": "pong",
 		})
 	})
+	r.GET("/", routes.RootHandler)
 
 	if err := r.Run(":8080"); err != nil {
 		panic("Failed to start server: " + err.Error())

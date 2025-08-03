@@ -15,7 +15,6 @@ import (
 	"github.com/rtk-rnjn/ping/routes"
 )
 
-
 func getTestDB() *gorm.DB {
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err := db.AutoMigrate(&models.User{}, &models.Channel{}, &models.Message{}, &models.UserChannel{}); err != nil {
@@ -38,7 +37,6 @@ func TestGenerateJWT(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
-
 
 func TestRegisterUser(t *testing.T) {
 	db := getTestDB()
