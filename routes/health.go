@@ -11,12 +11,12 @@ import (
 )
 
 func RedisHealthCheck(c *gin.Context) {
-	_, err := controller.RunCommand("PING")
-	if err != nil {
+	if err := controller.PingRedis(); err != nil {
 		log.Printf("Redis health check failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis is down"})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Redis is up"})
 }
 

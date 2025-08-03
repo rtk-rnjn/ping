@@ -10,12 +10,10 @@ type Message struct {
 	ChannelID uint   `gorm:"not null" json:"channel_id"`
 	UserID    uint   `gorm:"not null" json:"user_id"`
 	Content   string `gorm:"size:256;not null" json:"content"`
-	ReplyToID *uint  `gorm:"column:reply_to" json:"reply_to,omitempty"`
 
 	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 
 	Channel Channel  `gorm:"foreignKey:ChannelID;constraint:OnDelete:CASCADE" json:"-"`
 	User    User     `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-	ReplyTo *Message `gorm:"foreignKey:ReplyToID;constraint:OnDelete:SET NULL" json:"-"`
 }
