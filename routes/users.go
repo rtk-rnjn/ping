@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm"
 )
 
-
 type CreateMessageRequest struct {
 	ChannelID uint   `json:"channel_id"`
 	Content   string `json:"content"`

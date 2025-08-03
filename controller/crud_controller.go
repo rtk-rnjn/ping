@@ -54,7 +54,7 @@ func GetChannelByID(db *gorm.DB, id uint) (*models.Channel, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if err := SetCacheChannel(ch); err != nil {
 		return nil, err
 	}

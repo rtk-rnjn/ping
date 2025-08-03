@@ -10,8 +10,6 @@ import (
 	"gorm.io/gorm"
 )
 
-
-
 func JoinChannelHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, exists := c.Get("user")
@@ -100,10 +98,26 @@ func CreateChannelHandler(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		user, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
 		channel := &models.Channel{Name: req.Name}
 		err := controller.CreateChannel(db, channel)
 		if err != nil {
 			log.Printf("Error creating channel: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		err = controller.AddUserToChannel(db, &models.UserChannel{
+			UserID:    user.(*models.User).ID,
+			ChannelID: channel.ID,
+		})
+		if err != nil {
+			log.Printf("Error adding user to channel: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}

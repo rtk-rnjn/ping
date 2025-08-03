@@ -2,8 +2,8 @@ package internals
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
 	"log"
+	"net/http"
 )
 
 func MiddlewareJWTAuth() gin.HandlerFunc {
@@ -13,6 +13,10 @@ func MiddlewareJWTAuth() gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
 			c.Abort()
 			return
+		}
+
+		if len(token) > 7 && token[:7] == "Bearer " {
+			token = token[7:]
 		}
 
 		user, err := ValidateJWT(token)

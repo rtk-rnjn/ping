@@ -1,13 +1,12 @@
 package internals
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rtk-rnjn/ping/config"
 	"github.com/rtk-rnjn/ping/controller"
 	"github.com/rtk-rnjn/ping/models"
 	"golang.org/x/crypto/bcrypt"
@@ -54,7 +53,10 @@ func ValidateJWT(tokenString string) (*models.User, error) {
 
 	userID := uint(claims["id"].(float64))
 	user := &models.User{ID: userID}
-	if err := controller.Rdb.Get(context.Background(), fmt.Sprintf("user:%d", userID)).Scan(user); err != nil {
+
+	if user, err := controller.GetUserByID(config.DB, userID); err != nil {
+		return nil, fmt.Errorf("user not found")
+	} else if user == nil {
 		return nil, fmt.Errorf("user not found")
 	}
 
@@ -71,13 +73,11 @@ func RegisterUser(db *gorm.DB, username string, password string, displayName str
 		PasswordHash: hashed,
 		DisplayName:  displayName,
 	}
-	err = db.Create(&user).Error
-	if err != nil {
-		return "", err
+
+	if err := controller.CreateUser(config.DB, &user); err != nil {
+		return "", fmt.Errorf("failed to create user: %v", err)
 	}
-	cacheKey := fmt.Sprintf("user:%d", user.ID)
-	s, _ := json.Marshal(user)
-	controller.Rdb.Set(context.Background(), cacheKey, s, time.Minute*10)
+
 	return GenerateJWT(&user)
 }
 
@@ -92,4 +92,3 @@ func LoginUser(db *gorm.DB, username, password string) (string, error) {
 	}
 	return GenerateJWT(&user)
 }
-

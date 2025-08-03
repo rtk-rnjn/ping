@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rtk-rnjn/ping/models"
 	"github.com/redis/go-redis/v9"
+	"github.com/rtk-rnjn/ping/models"
 )
 
 var (
@@ -120,8 +120,8 @@ func DeleteCacheChannel(id uint) error {
 func SetCacheMessage(message models.Message) error {
 	prefix := fmt.Sprintf("message:%d", message.ID)
 	fields := map[string]string{
-		prefix:              message.Content,
-		prefix + ":user_id": strconv.Itoa(int(message.UserID)),
+		prefix:                 message.Content,
+		prefix + ":user_id":    strconv.Itoa(int(message.UserID)),
 		prefix + ":channel_id": strconv.Itoa(int(message.ChannelID)),
 	}
 
