@@ -23,13 +23,18 @@ func InitRedis() {
 		Addr: redisAddr,
 		DB:   0,
 	})
+	log.Printf("[INFO] Connecting to Redis at %s", redisAddr)
 	if _, err := Rdb.Ping(ctx).Result(); err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		log.Fatalf("[FATAL] Failed to connect to Redis: %v", err)
 	}
+	log.Println("[INFO] Redis connection established successfully")
 }
 
 func PingRedis() error {
 	_, err := Rdb.Ping(ctx).Result()
+	if err != nil {
+		log.Printf("[ERROR] Redis ping failed: %v", err)
+	}
 	return err
 }
 
@@ -38,8 +43,10 @@ func PingRedis() error {
 func setCacheFields(fields map[string]string, timeout time.Duration) error {
 	for k, v := range fields {
 		if err := Rdb.Set(ctx, k, v, timeout).Err(); err != nil {
+			log.Printf("[ERROR] Failed to set Redis key '%s': %v", k, err)
 			return fmt.Errorf("failed to set cache for %s: %w", k, err)
 		}
+		log.Printf("[DEBUG] Redis SET key='%s'", k)
 	}
 	return nil
 }
@@ -49,9 +56,11 @@ func getCacheFields(keys []string) (map[string]string, error) {
 	for _, k := range keys {
 		val, err := Rdb.Get(ctx, k).Result()
 		if err != nil {
+			log.Printf("[ERROR] Redis GET failed for key '%s': %v", k, err)
 			return nil, fmt.Errorf("failed to get cache for %s: %w", k, err)
 		}
 		results[k] = val
+		log.Printf("[DEBUG] Redis GET key='%s' hit", k)
 	}
 	return results, nil
 }
@@ -60,11 +69,17 @@ func getCacheFields(keys []string) (map[string]string, error) {
 
 func SetCacheUser(user models.User) error {
 	prefix := fmt.Sprintf("user:%d", user.ID)
-	return setCacheFields(map[string]string{
+	err := setCacheFields(map[string]string{
 		prefix + ":username":      user.Username,
 		prefix + ":password_hash": user.PasswordHash,
 		prefix + ":display_name":  user.DisplayName,
 	}, 10*time.Minute)
+	if err != nil {
+		log.Printf("[ERROR] Failed to cache user ID=%d: %v", user.ID, err)
+		return err
+	}
+	log.Printf("[INFO] User cached: ID=%d", user.ID)
+	return nil
 }
 
 func GetCacheUser(id uint) (*models.User, error) {
@@ -73,9 +88,11 @@ func GetCacheUser(id uint) (*models.User, error) {
 
 	data, err := getCacheFields(keys)
 	if err != nil {
+		log.Printf("[WARN] Cache miss for user ID=%d: %v", id, err)
 		return nil, err
 	}
 
+	log.Printf("[INFO] Cache hit for user ID=%d", id)
 	return &models.User{
 		ID:           id,
 		Username:     data[keys[0]],
@@ -88,10 +105,16 @@ func GetCacheUser(id uint) (*models.User, error) {
 
 func SetCacheChannel(channel models.Channel) error {
 	prefix := fmt.Sprintf("channel:%d", channel.ID)
-	return setCacheFields(map[string]string{
+	err := setCacheFields(map[string]string{
 		prefix + ":name":        channel.Name,
 		prefix + ":description": channel.Description,
 	}, 10*time.Minute)
+	if err != nil {
+		log.Printf("[ERROR] Failed to cache channel ID=%d: %v", channel.ID, err)
+		return err
+	}
+	log.Printf("[INFO] Channel cached: ID=%d", channel.ID)
+	return nil
 }
 
 func GetCacheChannel(id uint) (*models.Channel, error) {
@@ -100,9 +123,11 @@ func GetCacheChannel(id uint) (*models.Channel, error) {
 
 	data, err := getCacheFields(keys)
 	if err != nil {
+		log.Printf("[WARN] Cache miss for channel ID=%d: %v", id, err)
 		return nil, err
 	}
 
+	log.Printf("[INFO] Cache hit for channel ID=%d", id)
 	return &models.Channel{
 		ID:          id,
 		Name:        data[keys[0]],
@@ -112,7 +137,13 @@ func GetCacheChannel(id uint) (*models.Channel, error) {
 
 func DeleteCacheChannel(id uint) error {
 	prefix := fmt.Sprintf("channel:%d", id)
-	return Rdb.Del(ctx, prefix+":name", prefix+":description").Err()
+	err := Rdb.Del(ctx, prefix+":name", prefix+":description").Err()
+	if err != nil {
+		log.Printf("[ERROR] Failed to delete channel cache for ID=%d: %v", id, err)
+		return err
+	}
+	log.Printf("[INFO] Deleted cache for channel ID=%d", id)
+	return nil
 }
 
 // --- Message Cache ---
@@ -126,23 +157,24 @@ func SetCacheMessage(message models.Message) error {
 	}
 
 	if err := setCacheFields(fields, 10*time.Minute); err != nil {
+		log.Printf("[ERROR] Failed to cache message ID=%d: %v", message.ID, err)
 		return err
-	}
-
-	if err := Rdb.Del(ctx, prefix+":reply_to_id").Err(); err != nil {
-		return fmt.Errorf("failed to delete message reply_to_id: %w", err)
 	}
 
 	if err := PushMessageToChannel(message.ChannelID, &message); err != nil {
+		log.Printf("[ERROR] Failed to push message to queue: %v", err)
 		return err
 	}
 	if err := PublishMessage(message.ChannelID, &message); err != nil {
+		log.Printf("[ERROR] Failed to publish message: %v", err)
 		return err
 	}
 	if err := Rdb.LTrim(ctx, fmt.Sprintf("channel:%d:messages", message.ChannelID), -128, -1).Err(); err != nil {
+		log.Printf("[ERROR] Failed to trim message list for channel %d: %v", message.ChannelID, err)
 		return fmt.Errorf("failed to trim channel messages cache: %w", err)
 	}
-	log.Printf("Message %d cached successfully", message.ID)
+
+	log.Printf("[INFO] Message cached: ID=%d, ChannelID=%d", message.ID, message.ChannelID)
 	return nil
 }
 
@@ -152,12 +184,14 @@ func GetCacheMessage(id uint) (*models.Message, error) {
 
 	data, err := getCacheFields(keys)
 	if err != nil {
+		log.Printf("[WARN] Cache miss for message ID=%d: %v", id, err)
 		return nil, err
 	}
 
 	userID, _ := strconv.ParseUint(data[keys[1]], 10, 32)
 	channelID, _ := strconv.ParseUint(data[keys[2]], 10, 32)
 
+	log.Printf("[INFO] Cache hit for message ID=%d", id)
 	return &models.Message{
 		ID:        id,
 		Content:   data[keys[0]],
@@ -171,19 +205,27 @@ func GetCacheMessage(id uint) (*models.Message, error) {
 func PushMessageToChannel(channelID uint, message *models.Message) error {
 	key := fmt.Sprintf("channel:%d:messages", channelID)
 	if err := Rdb.RPush(ctx, key, message.ID).Err(); err != nil {
+		log.Printf("[ERROR] Failed to RPush message ID=%d: %v", message.ID, err)
 		return fmt.Errorf("failed to push message to channel: %w", err)
 	}
+	log.Printf("[DEBUG] Message ID=%d pushed to channel queue", message.ID)
 	return Rdb.LTrim(ctx, key, -128, -1).Err()
 }
 
 func PublishMessage(channelID uint, message *models.Message) error {
-	return Rdb.Publish(ctx, fmt.Sprintf("channel:%d:messages", channelID), message.ID).Err()
+	key := fmt.Sprintf("channel:%d:messages", channelID)
+	err := Rdb.Publish(ctx, key, message.ID).Err()
+	if err != nil {
+		log.Printf("[ERROR] Failed to publish message ID=%d to pubsub: %v", message.ID, err)
+	}
+	return err
 }
 
 func GetMessagesFromChannel(channelID uint) ([]models.Message, error) {
 	key := fmt.Sprintf("channel:%d:messages", channelID)
 	ids, err := Rdb.LRange(ctx, key, 0, -1).Result()
 	if err != nil {
+		log.Printf("[ERROR] Failed to read message queue for channel ID=%d: %v", channelID, err)
 		return nil, err
 	}
 
@@ -191,15 +233,16 @@ func GetMessagesFromChannel(channelID uint) ([]models.Message, error) {
 	for _, idStr := range ids {
 		msgID, err := strconv.ParseUint(idStr, 10, 32)
 		if err != nil {
-			log.Printf("Invalid message ID %s: %v", idStr, err)
+			log.Printf("[WARN] Skipping invalid message ID '%s': %v", idStr, err)
 			continue
 		}
 		msg, err := GetCacheMessage(uint(msgID))
 		if err != nil {
-			log.Printf("Could not retrieve message %d: %v", msgID, err)
+			log.Printf("[WARN] Could not retrieve cached message ID=%d: %v", msgID, err)
 			continue
 		}
 		messages = append(messages, *msg)
 	}
+	log.Printf("[INFO] Retrieved %d messages from channel ID=%d", len(messages), channelID)
 	return messages, nil
 }
