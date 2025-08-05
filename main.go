@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,7 @@ func InitDB() {
 	controller.InitRedis()
 }
 
+
 func main() {
 	InitEnv()
 	InitDB()
@@ -32,7 +34,19 @@ func main() {
 
 	routes.MapRoutes(r, config.DB)
 
-	if err := r.Run(":8080"); err != nil {
+
+	HOST := os.Getenv("HOST")
+	PORT := os.Getenv("PORT")
+
+	if HOST == "" {
+		panic("HOST environment variable is not set")
+	}
+
+	if PORT == "" {
+		panic("PORT environment variable is not set")
+	}
+
+	if err := r.Run(HOST + ":" + PORT); err != nil {
 		panic("Failed to start server: " + err.Error())
 	}
 }

@@ -37,9 +37,11 @@ go build -o ping
 ```
 
 ## Configuration
-The application can be configured using environment variables. The following variables are available:
+The application can be configured using environment variables. Rename `example.env` to `.env`. The following variables are available:
 - `JWT_SECRET`: Secret key used for JWT signing and verification.
 - `REDIS_ADDR`: Address of the Redis server (if using Redis for session management).
+- `HOST`: Host address to bind the server (default is `0.0.0.0`).
+- `PORT`: Port number to bind the server (default is `8080`).
 
 ## Usage
-Once the application is running, you can access the API at `http://localhost:8080`.
+Once the application is running, you can access the API at `http://127.0.0.1:8080`.
