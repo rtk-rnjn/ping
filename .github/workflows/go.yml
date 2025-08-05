@@ -6,8 +6,19 @@ name: Go
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - ".github/workflows/go.yml"
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - ".github/workflows/go.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "go-build"
+  cancel-in-progress: true
 
 jobs:
 
@@ -19,7 +30,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@main
       with:
-        go-version: '1.24.2'
+        go-version-file: "go.mod"
 
     - name: Build
       run: go build -v ./...
