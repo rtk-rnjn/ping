@@ -39,7 +39,7 @@ func MapRoutes(r *gin.Engine, db *gorm.DB) {
 	}
 
 	socketGroup := r.Group("/messages")
-	// socketGroup.Use(internals.MiddlewareJWTAuth())
+	socketGroup.Use(internals.MiddlewareJWTAuth())
 	{
 		socketGroup.GET("/:channelID", WebSocketChannelMessageHandler)
 	}

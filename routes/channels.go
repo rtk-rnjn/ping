@@ -20,7 +20,7 @@ func JoinChannelHandler(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var req struct {
-			ChannelID uint `json:"channel_id"`
+			ChannelID uint64 `json:"channel_id"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			log.Printf("[ERROR] JoinChannelHandler: Invalid JSON: %v", err)
@@ -55,7 +55,7 @@ func LeaveChannelHandler(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var req struct {
-			ChannelID uint `json:"channel_id"`
+			ChannelID uint64 `json:"channel_id"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			log.Printf("[ERROR] LeaveChannelHandler: Invalid JSON: %v", err)
@@ -80,7 +80,7 @@ func LeaveChannelHandler(db *gorm.DB) gin.HandlerFunc {
 func GetChannelUsersHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			ChannelID uint `json:"channel_id"`
+			ChannelID uint64 `json:"channel_id"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			log.Printf("[ERROR] GetChannelUsersHandler: Invalid JSON: %v", err)

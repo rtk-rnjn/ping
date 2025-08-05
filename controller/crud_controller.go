@@ -23,7 +23,7 @@ func CreateUser(db *gorm.DB, user *models.User) error {
 	return nil
 }
 
-func GetUserByID(db *gorm.DB, id uint) (*models.User, error) {
+func GetUserByID(db *gorm.DB, id uint64) (*models.User, error) {
 	if user, err := GetCacheUser(id); err == nil {
 		log.Printf("[INFO] Cache hit for user ID=%d", id)
 		return user, nil
@@ -57,7 +57,7 @@ func CreateChannel(db *gorm.DB, ch *models.Channel) error {
 	return nil
 }
 
-func GetChannelByID(db *gorm.DB, id uint) (*models.Channel, error) {
+func GetChannelByID(db *gorm.DB, id uint64) (*models.Channel, error) {
 	if ch, err := GetCacheChannel(id); err == nil {
 		log.Printf("[INFO] Cache hit for channel ID=%d", id)
 		return ch, nil
@@ -76,7 +76,7 @@ func GetChannelByID(db *gorm.DB, id uint) (*models.Channel, error) {
 	return &ch, nil
 }
 
-func DeleteChannel(db *gorm.DB, id uint) error {
+func DeleteChannel(db *gorm.DB, id uint64) error {
 	if err := db.Delete(&models.Channel{}, id).Error; err != nil {
 		log.Printf("[ERROR] Failed to delete channel ID=%d: %v", id, err)
 		return err
@@ -105,7 +105,7 @@ func CreateMessage(db *gorm.DB, msg *models.Message) error {
 	return nil
 }
 
-func GetMessageByID(db *gorm.DB, id uint) (*models.Message, error) {
+func GetMessageByID(db *gorm.DB, id uint64) (*models.Message, error) {
 	if msg, err := GetCacheMessage(id); err == nil {
 		log.Printf("[INFO] Cache hit for message ID=%d", id)
 		return msg, nil
@@ -124,7 +124,7 @@ func GetMessageByID(db *gorm.DB, id uint) (*models.Message, error) {
 	return &msg, nil
 }
 
-func GetMessagesByChannelID(db *gorm.DB, channelID uint) ([]models.Message, error) {
+func GetMessagesByChannelID(db *gorm.DB, channelID uint64) ([]models.Message, error) {
 	if messages, err := GetMessagesFromChannel(channelID); err == nil {
 		log.Printf("[INFO] Got %d messages from channel cache ID=%d", len(messages), channelID)
 		return messages, nil
@@ -142,7 +142,7 @@ func AddUserToChannel(db *gorm.DB, uc *models.UserChannel) error {
 	return nil
 }
 
-func RemoveUserFromChannel(db *gorm.DB, userID uint, channelID uint) error {
+func RemoveUserFromChannel(db *gorm.DB, userID uint64, channelID uint64) error {
 	if err := db.Delete(&models.UserChannel{}, "user_id = ? AND channel_id = ?", userID, channelID).Error; err != nil {
 		log.Printf("[ERROR] Failed to remove user %d from channel %d: %v", userID, channelID, err)
 		return err
@@ -151,7 +151,7 @@ func RemoveUserFromChannel(db *gorm.DB, userID uint, channelID uint) error {
 	return nil
 }
 
-func GetUserChannels(db *gorm.DB, userID uint) ([]models.UserChannel, error) {
+func GetUserChannels(db *gorm.DB, userID uint64) ([]models.UserChannel, error) {
 	var list []models.UserChannel
 	err := db.Where("user_id = ?", userID).Preload("Channel").Find(&list).Error
 	if err != nil {
@@ -160,7 +160,7 @@ func GetUserChannels(db *gorm.DB, userID uint) ([]models.UserChannel, error) {
 	return list, err
 }
 
-func GetChannelUsers(db *gorm.DB, channelID uint) ([]models.UserChannel, error) {
+func GetChannelUsers(db *gorm.DB, channelID uint64) ([]models.UserChannel, error) {
 	var list []models.UserChannel
 	err := db.Where("channel_id = ?", channelID).Preload("User").Find(&list).Error
 	if err != nil {
@@ -169,7 +169,7 @@ func GetChannelUsers(db *gorm.DB, channelID uint) ([]models.UserChannel, error) 
 	return list, err
 }
 
-func IsUserInChannel(db *gorm.DB, userID uint, channelID uint) (bool, error) {
+func IsUserInChannel(db *gorm.DB, userID uint64, channelID uint64) (bool, error) {
 	var count int64
 	err := db.Model(&models.UserChannel{}).Where("user_id = ? AND channel_id = ?", userID, channelID).Count(&count).Error
 	if err != nil {

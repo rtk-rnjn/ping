@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+	"github.com/rtk-rnjn/ping/config"
 	"github.com/rtk-rnjn/ping/controller"
 	"github.com/rtk-rnjn/ping/models"
 	"gorm.io/gorm"
@@ -19,7 +20,7 @@ import (
 var upgrader = websocket.Upgrader{}
 
 type CreateMessageRequest struct {
-	ChannelID uint   `json:"channel_id"`
+	ChannelID uint64 `json:"channel_id"`
 	Content   string `json:"content"`
 }
 
@@ -64,6 +65,34 @@ func WebSocketChannelMessageHandler(c *gin.Context) {
 		return
 	}
 
+	if !verifyUserMembership(c, channelIDUint) {
+		return
+	}
+
+	handleWebSocket(c, channelIDUint)
+}
+
+func verifyUserMembership(c *gin.Context, channelIDUint uint64) bool {
+	user := c.MustGet("user").(*models.User)
+	log.Printf("[INFO] User %d connected to WebSocket for channelID=%d", user.ID, channelIDUint)
+
+	exists, err := controller.IsUserInChannel(config.DB, user.ID, channelIDUint)
+	if err != nil {
+		log.Printf("[ERROR] Failed to check user channel membership (channelID=%d): %v", channelIDUint, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check channel membership"})
+		return false
+	}
+
+	if !exists {
+		log.Printf("[WARN] User %d not in channel %d, closing WebSocket", user.ID, channelIDUint)
+		c.JSON(http.StatusForbidden, gin.H{"error": "You are not a member of this channel"})
+		return false
+	}
+
+	return true
+}
+
+func handleWebSocket(c *gin.Context, channelIDUint uint64) {
 	cacheKey := fmt.Sprintf("channel:%d:messages", channelIDUint)
 	pubSub := controller.Rdb.Subscribe(context.Background(), cacheKey)
 	defer closePubSub(pubSub, channelIDUint)
@@ -81,22 +110,51 @@ func WebSocketChannelMessageHandler(c *gin.Context) {
 		return nil
 	})
 
-	go func() {
-		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("[ERROR] Read error from client (channelID=%d): %v", channelIDUint, err)
-				break
-			}
-		}
-	}()
+	go listenToClient(conn, channelIDUint)
 
 	for msg := range ch {
-		if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+		messageIntUint, err := strconv.ParseUint(msg.Payload, 10, 64)
+		if err != nil {
+			log.Printf("[ERROR] Invalid message format received on channel %s: %v", cacheKey, err)
+			continue
+		}
+
+		message, err := controller.GetMessageByID(config.DB, messageIntUint)
+		if err != nil {
+			log.Printf("[ERROR] Failed to get message by ID %d: %v", messageIntUint, err)
+			continue
+		}
+		if message == nil {
+			log.Printf("[WARN] Message with ID %d not found in database", messageIntUint)
+			continue
+		}
+		if message.ChannelID != channelIDUint {
+			log.Printf("[WARN] Message with ID %d does not belong to channel %d", messageIntUint, channelIDUint)
+			continue
+		}
+		log.Printf("[DEBUG] Received message from Redis PubSub (channelID=%d): %s", channelIDUint, msg.Payload)
+
+		jsonStringMsg, err := message.ToJSONStringPayload()
+		if err != nil {
+			log.Printf("[ERROR] Failed to convert message to JSON string (channelID=%d): %v", channelIDUint, err)
+			continue
+		}
+
+		if err := conn.WriteMessage(websocket.TextMessage, []byte(jsonStringMsg)); err != nil {
 			log.Printf("[ERROR] Failed to send message to WebSocket (channelID=%d): %v", channelIDUint, err)
 			break
 		}
-		log.Printf("[DEBUG] Sent message to client (channelID=%d): %s", channelIDUint, msg.Payload)
+		log.Printf("[DEBUG] Sent message to client (channelID=%d): %s", channelIDUint, jsonStringMsg)
+	}
+}
+
+func listenToClient(conn *websocket.Conn, channelIDUint uint64) {
+	for {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			log.Printf("[ERROR] Read error from client (channelID=%d): %v", channelIDUint, err)
+			break
+		}
 	}
 }
 

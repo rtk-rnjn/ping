@@ -82,7 +82,7 @@ func SetCacheUser(user models.User) error {
 	return nil
 }
 
-func GetCacheUser(id uint) (*models.User, error) {
+func GetCacheUser(id uint64) (*models.User, error) {
 	prefix := fmt.Sprintf("user:%d", id)
 	keys := []string{prefix + ":username", prefix + ":password_hash", prefix + ":display_name"}
 
@@ -117,7 +117,7 @@ func SetCacheChannel(channel models.Channel) error {
 	return nil
 }
 
-func GetCacheChannel(id uint) (*models.Channel, error) {
+func GetCacheChannel(id uint64) (*models.Channel, error) {
 	prefix := fmt.Sprintf("channel:%d", id)
 	keys := []string{prefix + ":name", prefix + ":description"}
 
@@ -135,7 +135,7 @@ func GetCacheChannel(id uint) (*models.Channel, error) {
 	}, nil
 }
 
-func DeleteCacheChannel(id uint) error {
+func DeleteCacheChannel(id uint64) error {
 	prefix := fmt.Sprintf("channel:%d", id)
 	err := Rdb.Del(ctx, prefix+":name", prefix+":description").Err()
 	if err != nil {
@@ -178,7 +178,7 @@ func SetCacheMessage(message models.Message) error {
 	return nil
 }
 
-func GetCacheMessage(id uint) (*models.Message, error) {
+func GetCacheMessage(id uint64) (*models.Message, error) {
 	prefix := fmt.Sprintf("message:%d", id)
 	keys := []string{prefix, prefix + ":user_id", prefix + ":channel_id"}
 
@@ -195,14 +195,14 @@ func GetCacheMessage(id uint) (*models.Message, error) {
 	return &models.Message{
 		ID:        id,
 		Content:   data[keys[0]],
-		UserID:    uint(userID),
-		ChannelID: uint(channelID),
+		UserID:    uint64(userID),
+		ChannelID: uint64(channelID),
 	}, nil
 }
 
 // --- Channel Message Queue & Pub/Sub ---
 
-func PushMessageToChannel(channelID uint, message *models.Message) error {
+func PushMessageToChannel(channelID uint64, message *models.Message) error {
 	key := fmt.Sprintf("channel:%d:messages", channelID)
 	if err := Rdb.RPush(ctx, key, message.ID).Err(); err != nil {
 		log.Printf("[ERROR] Failed to RPush message ID=%d: %v", message.ID, err)
@@ -212,7 +212,7 @@ func PushMessageToChannel(channelID uint, message *models.Message) error {
 	return Rdb.LTrim(ctx, key, -128, -1).Err()
 }
 
-func PublishMessage(channelID uint, message *models.Message) error {
+func PublishMessage(channelID uint64, message *models.Message) error {
 	key := fmt.Sprintf("channel:%d:messages", channelID)
 	err := Rdb.Publish(ctx, key, message.ID).Err()
 	if err != nil {
@@ -221,7 +221,7 @@ func PublishMessage(channelID uint, message *models.Message) error {
 	return err
 }
 
-func GetMessagesFromChannel(channelID uint) ([]models.Message, error) {
+func GetMessagesFromChannel(channelID uint64) ([]models.Message, error) {
 	key := fmt.Sprintf("channel:%d:messages", channelID)
 	ids, err := Rdb.LRange(ctx, key, 0, -1).Result()
 	if err != nil {
@@ -236,7 +236,7 @@ func GetMessagesFromChannel(channelID uint) ([]models.Message, error) {
 			log.Printf("[WARN] Skipping invalid message ID '%s': %v", idStr, err)
 			continue
 		}
-		msg, err := GetCacheMessage(uint(msgID))
+		msg, err := GetCacheMessage(uint64(msgID))
 		if err != nil {
 			log.Printf("[WARN] Could not retrieve cached message ID=%d: %v", msgID, err)
 			continue

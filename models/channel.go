@@ -5,7 +5,7 @@ import (
 )
 
 type Channel struct {
-	ID          uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID          uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name        string    `gorm:"size:64;not null;unique" json:"name"`
 	Description string    `gorm:"type:text" json:"description"`
 	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`

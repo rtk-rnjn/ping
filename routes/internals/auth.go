@@ -75,7 +75,7 @@ func ValidateJWT(tokenString string) (*models.User, error) {
 		log.Println("[ERROR] JWT missing or malformed 'id' claim")
 		return nil, fmt.Errorf("invalid user ID in token")
 	}
-	userID := uint(userIDFloat)
+	userID := uint64(userIDFloat)
 
 	log.Printf("[INFO] Extracted userID=%d from token", userID)
 	user, err := controller.GetUserByID(config.DB, userID)
