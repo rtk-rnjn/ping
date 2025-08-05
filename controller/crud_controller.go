@@ -168,3 +168,13 @@ func GetChannelUsers(db *gorm.DB, channelID uint) ([]models.UserChannel, error) 
 	}
 	return list, err
 }
+
+func IsUserInChannel(db *gorm.DB, userID uint, channelID uint) (bool, error) {
+	var count int64
+	err := db.Model(&models.UserChannel{}).Where("user_id = ? AND channel_id = ?", userID, channelID).Count(&count).Error
+	if err != nil {
+		log.Printf("[ERROR] Failed to check if user %d is in channel %d: %v", userID, channelID, err)
+		return false, err
+	}
+	return count > 0, nil
+}

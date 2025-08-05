@@ -2,14 +2,15 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 	"github.com/rtk-rnjn/ping/controller"
 	"github.com/rtk-rnjn/ping/models"
 	"gorm.io/gorm"
@@ -58,55 +59,37 @@ func CreateMessageHandler(db *gorm.DB) gin.HandlerFunc {
 }
 
 func WebSocketChannelMessageHandler(c *gin.Context) {
-	channelID := c.Param("channelID")
-	if channelID == "" {
-		log.Println("[WARN] WebSocket request with missing channelID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Channel ID is required"})
-		return
-	}
-
-	channelIDUint, err := strconv.ParseUint(channelID, 10, 32)
+	channelIDUint, err := extractChannelID(c)
 	if err != nil {
-		log.Printf("[ERROR] Invalid channelID format: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Channel ID"})
 		return
 	}
 
 	cacheKey := fmt.Sprintf("channel:%d:messages", channelIDUint)
 	pubSub := controller.Rdb.Subscribe(context.Background(), cacheKey)
-	defer func() {
-		log.Printf("[INFO] Closing Redis PubSub for channelID=%d", channelIDUint)
-		pubSub.Close()
-	}()
+	defer closePubSub(pubSub, channelIDUint)
 
 	ch := pubSub.Channel()
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := upgradeWebSocket(c, channelIDUint)
 	if err != nil {
-		log.Printf("[ERROR] Failed to upgrade to WebSocket: %v", err)
 		return
 	}
-	defer func() {
-		log.Printf("[INFO] Closing WebSocket connection for channelID=%d", channelIDUint)
-		conn.Close()
-	}()
+	defer closeWebSocket(conn, channelIDUint)
 
-	log.Printf("[INFO] WebSocket connection established for channelID=%d", channelIDUint)
-
-	if err := conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
-		log.Printf("[ERROR] Setting initial read deadline failed: %v", err)
-		return
-	}
-
-	conn.SetPongHandler(func(string) error {
-		if err := conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
-			log.Printf("[ERROR] Pong deadline update failed: %v", err)
-			return err
-		}
+	conn.SetCloseHandler(func(code int, text string) error {
+		log.Printf("[INFO] WebSocket closed (channelID=%d): %d %s", channelIDUint, code, text)
 		return nil
 	})
 
-	go clientPinger(conn, channelIDUint)
+	go func() {
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				log.Printf("[ERROR] Read error from client (channelID=%d): %v", channelIDUint, err)
+				break
+			}
+		}
+	}()
 
 	for msg := range ch {
 		if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
@@ -117,15 +100,41 @@ func WebSocketChannelMessageHandler(c *gin.Context) {
 	}
 }
 
-func clientPinger(conn *websocket.Conn, channelID uint64) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-			log.Printf("[ERROR] Ping failed (channelID=%d): %v", channelID, err)
-			return
-		}
-		log.Printf("[DEBUG] Ping sent to client (channelID=%d)", channelID)
+func extractChannelID(c *gin.Context) (uint64, error) {
+	channelID := c.Param("channelID")
+	if channelID == "" {
+		log.Println("[WARN] WebSocket request with missing channelID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Channel ID is required"})
+		return 0, errors.New("missing channelID")
 	}
+
+	channelIDUint, err := strconv.ParseUint(channelID, 10, 32)
+	if err != nil {
+		log.Printf("[ERROR] Invalid channelID format: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Channel ID"})
+		return 0, err
+	}
+
+	return channelIDUint, nil
+}
+
+func upgradeWebSocket(c *gin.Context, channelID uint64) (*websocket.Conn, error) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("[ERROR] Failed to upgrade to WebSocket: %v", err)
+		return nil, err
+	}
+
+	log.Printf("[INFO] WebSocket connection established for channelID=%d", channelID)
+	return conn, nil
+}
+
+func closeWebSocket(conn *websocket.Conn, channelID uint64) {
+	log.Printf("[INFO] Closing WebSocket connection for channelID=%d", channelID)
+	conn.Close()
+}
+
+func closePubSub(pubSub *redis.PubSub, channelID uint64) {
+	log.Printf("[INFO] Closing Redis PubSub for channelID=%d", channelID)
+	pubSub.Close()
 }
